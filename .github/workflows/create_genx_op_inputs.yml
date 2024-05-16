@@ -1,0 +1,73 @@
+name: Create GenX op inputs
+
+on: [push, pull_request]  # Triggers on push or pull request events
+
+jobs:
+  run_script:
+    runs-on: ubuntu-latest  # Specifies the runner environment
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install Environment with Micromamba
+        uses: mamba-org/setup-micromamba@main
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          init-shell: bash
+          post-cleanup: 'all'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Find directories and run script
+        run: |
+          #!/bin/bash
+          # Navigate to the repository root directory
+          cd $GITHUB_WORKSPACE
+          
+          # Find top-level directories starting with "full" or "short"
+          for dir in full* short*; do
+            if [[ -d "$dir" && ( "$dir" == full* || "$dir" == short* ) ]]; then
+              # Check for sub-folders containing "results_summary"
+              find "$dir" -type d -name "*results_summary*" | while read subfolder; do
+                echo "Running script on $subfolder"
+                # Extract the first part of the subfolder name, split by "_"
+                subfolder_name=$(basename "$subfolder")  # Get the last part of the path
+                first_part_subfolder_name="${subfolder_name%%_*}"  # Extract first part before "_"
+                
+                # Run the script with the top-level directory and the extracted first part
+                cd bin
+                bash results_to_genx_inputs.sh "$dir" "$first_part_subfolder_name"
+                cd ..
+              done
+            fi
+          done
+
+      - name: Check for modified files
+        id: git-check
+        run: |
+          echo "modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi)" >> $GITHUB_OUTPUT
+          if git diff-index --quiet HEAD --; then echo "no changed files"; else echo "some changed files"; fi
+  
+      - name: Add changes
+        if: steps.git-check.outputs.modified == 'true'
+        run: |
+          git pull --rebase
+          git add .
+          git commit -m "Create op inputs"
+          echo "Commit done"
+
+      - name: Push changes to repository
+        if: steps.git-check.outputs.modified == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
