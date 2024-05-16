@@ -23,11 +23,11 @@ for i in "${!YEARS[@]}"; do
     GENX_INPUTS_PATH="../genx-op-inputs/${input_folder}/Inputs/Inputs_${PERIODS[$i]}"
     OUTPUT_PATH="../${folder}/${model}_op_inputs/Inputs/Inputs_${PERIODS[$i]}"
 
-    python results_to_genx_inputs.py "$RESULTS_PATH" "$GENX_INPUTS_PATH" "$OUTPUT_PATH" --year "${YEARS[$i]}"
+    python results_to_genx_inputs.py "$RESULTS_PATH" "$GENX_INPUTS_PATH" "$OUTPUT_PATH" --co2-slack "${co2_slack}" --year "${YEARS[$i]}"
     
-    if test -f "${OUTPUT_PATH}/CO2_cap_slack.csv"; then 
-        sed -i '' "s/200/${co2_slack}/g" "${OUTPUT_PATH}/CO2_cap_slack.csv"
-    fi
+    # if test -f "${OUTPUT_PATH}/CO2_cap_slack.csv"; then 
+    #     sed -i '' "s/200/${co2_slack}/g" "${OUTPUT_PATH}/CO2_cap_slack.csv"
+    # fi
 
     # if test -f "${OUTPUT_PATH}/Generators_variability.csv"; then
     #     gzip -f "${OUTPUT_PATH}/Generators_variability.csv"

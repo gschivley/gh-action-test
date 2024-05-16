@@ -118,8 +118,14 @@ def remove_nonvariable_resources(df: pd.DataFrame):
 
 
 def create_operational_genx_inputs(
-    results_dict: Dict[str, pd.DataFrame], genx_dict: Dict[str, pd.DataFrame]
+    results_dict: Dict[str, pd.DataFrame],
+    genx_dict: Dict[str, pd.DataFrame],
+    co2_slack: int = 200,
 ) -> Dict[str, pd.DataFrame]:
+
+    if "CO2_cap_slack" in genx_dict.keys():
+        genx_dict["CO2_cap_slack"].loc[0, "PriceCap"] = co2_slack
+
     idx = pd.IndexSlice
 
     genx_dict["Generators_data"].set_index("Resource", inplace=True)
@@ -234,7 +240,8 @@ def weighted_avg_annuities(inputs_path: Path, output_path: Path):
     # periods = ["p1", "p2", "p3", "p4", "p5", "p6"]
     for period in periods:
         gen_data[period] = pd.read_csv(
-            output_path.parent / f"Inputs_{period}" / "Generators_data.csv"
+            output_path.parent / f"Inputs_{period}" / "Generators_data.csv",
+            na_filter=False,
         ).set_index("Resource")
         existing_gen[period] = gen_data[period].loc[
             gen_data[period]["Inv_Cost_per_MWyr"] == 0, :
@@ -250,52 +257,15 @@ def weighted_avg_annuities(inputs_path: Path, output_path: Path):
         for kind in ["MW", "MWh"]:
             new_gen[p] = period_weighted_avg_cost(new_gen, periods[: i + 1], kind=kind)
 
-    # new_build_idx = gen_data["p1"].loc[gen_data["Inv_Cost_per_MWyr"] > 0, :].index
-    # 2040 weighted avg
-    # for kind in ["MW", "MWh"]:
-    #     total_mw = new_gen["p2"][f"Existing_Cap_{kind}"]
-    #     p1_frac = (new_gen["p1"][f"Existing_Cap_{kind}"] / total_mw).fillna(0)
-    #     p2_frac = (
-    #         (
-    #             new_gen["p2"][f"Existing_Cap_{kind}"]
-    #             - new_gen["p1"][f"Existing_Cap_{kind}"]
-    #         )
-    #         / total_mw
-    #     ).fillna(0)
-
-    #     # assert (p1_frac + p2_frac == 1).all()
-
-    #     # for col in ["Fixed_OM_Cost_per_MWyr", "Fixed_OM_Cost_per_MWhyr"]:
-    #     new_gen["p2"][f"Fixed_OM_Cost_per_{kind}yr"] = (
-    #         new_gen["p1"][f"Fixed_OM_Cost_per_{kind}yr"] * p1_frac
-    #     ) + (new_gen["p2"][f"Fixed_OM_Cost_per_{kind}yr"] * p2_frac)
-
-    #     # 2050 weighted avg
-    #     total_mw = new_gen["p3"][f"Existing_Cap_{kind}"]
-    #     p1_build = new_gen["p1"][f"Existing_Cap_{kind}"]
-    #     p2_build = new_gen["p2"][f"Existing_Cap_{kind}"] - p1_build
-    #     p3_build = new_gen["p3"][f"Existing_Cap_{kind}"] - (p1_build + p2_build)
-
-    #     p1_frac = (p1_build / total_mw).fillna(0)
-    #     p2_frac = (p2_build / total_mw).fillna(0)
-    #     p3_frac = (p3_build / total_mw).fillna(0)
-
-    #     # assert (p1_frac + p2_frac + p3_frac == 1).all()
-
-    #     # for col in ["Fixed_OM_Cost_per_MWyr", "Fixed_OM_Cost_per_MWhyr"]:
-    #     new_gen["p3"][f"Fixed_OM_Cost_per_{kind}yr"] = (
-    #         (new_gen["p1"][f"Fixed_OM_Cost_per_{kind}yr"] * p1_frac)
-    #         + (new_gen["p2"][f"Fixed_OM_Cost_per_{kind}yr"] * p2_frac)
-    #         + (new_gen["p3"][f"Fixed_OM_Cost_per_{kind}yr"] * p3_frac)
-    #     )
-
     for period in periods:
-        pd.concat([existing_gen[period], new_gen[period]]).to_csv(
-            output_path.parent / f"Inputs_{period}" / "Generators_data.csv"
-        )
-        gen_data[period].to_csv(
-            output_path.parent / f"Inputs_{period}" / "Generators_data.csv"
-        )
+        fn = output_path.parent / f"Inputs_{period}" / "Generators_data.csv"
+        pd.concat([existing_gen[period], new_gen[period]]).to_csv(fn)
+        if fn.exists():
+            print(fn)
+
+        # gen_data[period].to_csv(
+        #     output_path.parent / f"Inputs_{period}" / "Generators_data.csv"
+        # )
 
 
 def period_weighted_avg_cost(
@@ -320,7 +290,7 @@ def period_weighted_avg_cost(
     frac_build[periods[0]] = (p_build[periods[0]] / total_build).fillna(0)
     new_gen[final_period].loc[:, f"Fixed_OM_Cost_per_{kind}yr"] = (
         new_gen[periods[0]][f"Fixed_OM_Cost_per_{kind}yr"] * frac_build[periods[0]]
-    )
+    ).astype(int)
 
     # Fraction built and fractional cost from subsequent periods
     for p1, p2 in zip(periods[:-1], periods[1:]):
@@ -335,12 +305,18 @@ def period_weighted_avg_cost(
 
         new_gen[final_period].loc[:, f"Fixed_OM_Cost_per_{kind}yr"] += (
             new_gen["p1"][f"Fixed_OM_Cost_per_{kind}yr"] * frac_build[p2]
-        )
+        ).astype(int)
 
     return new_gen[final_period]
 
 
-def main(results_path: str, genx_inputs_path: str, output_path: str, year: int = 2050):
+def main(
+    results_path: str,
+    genx_inputs_path: str,
+    output_path: str,
+    co2_slack: int = 200,
+    year: int = 2050,
+):
     if not Path(results_path).exists():
         folder_name = Path(results_path).stem
         if " " in folder_name:
