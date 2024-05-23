@@ -14,3 +14,4 @@ dependencies:
   - nbformat
   - jupyter
   - typer
+  - bioconda::snakemake

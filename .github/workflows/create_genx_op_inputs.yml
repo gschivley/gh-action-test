@@ -29,28 +29,33 @@ jobs:
           git config --global rebase.autoStash true
 
       - name: Find directories and run script
+        # uses: snakemake/snakemake-github-action@v1
+        # with:
+        #   directory: "."
         run: |
-          #!/bin/bash
-          # Navigate to the repository root directory
-          cd $GITHUB_WORKSPACE
+          snakemake -c2
+        # run: |
+        #   #!/bin/bash
+        #   # Navigate to the repository root directory
+        #   cd $GITHUB_WORKSPACE
           
-          # Find top-level directories starting with "full" or "short"
-          for dir in full* short*; do
-            if [[ -d "$dir" && ( "$dir" == full* || "$dir" == short* ) ]]; then
-              # Check for sub-folders containing "results_summary"
-              find "$dir" -type d -name "*results_summary*" | while read subfolder; do
-                echo "Running script on $subfolder"
-                # Extract the first part of the subfolder name, split by "_"
-                subfolder_name=$(basename "$subfolder")  # Get the last part of the path
-                first_part_subfolder_name="${subfolder_name%%_*}"  # Extract first part before "_"
+        #   # Find top-level directories starting with "full" or "short"
+        #   for dir in full* short*; do
+        #     if [[ -d "$dir" && ( "$dir" == full* || "$dir" == short* ) ]]; then
+        #       # Check for sub-folders containing "results_summary"
+        #       find "$dir" -type d -name "*results_summary*" | while read subfolder; do
+        #         echo "Running script on $subfolder"
+        #         # Extract the first part of the subfolder name, split by "_"
+        #         subfolder_name=$(basename "$subfolder")  # Get the last part of the path
+        #         first_part_subfolder_name="${subfolder_name%%_*}"  # Extract first part before "_"
                 
-                # Run the script with the top-level directory and the extracted first part
-                cd bin
-                bash results_to_genx_inputs.sh "$dir" "$first_part_subfolder_name"
-                cd ..
-              done
-            fi
-          done
+        #         # Run the script with the top-level directory and the extracted first part
+        #         cd bin
+        #         bash results_to_genx_inputs.sh "$dir" "$first_part_subfolder_name"
+        #         cd ..
+        #       done
+        #     fi
+        #   done
 
       - name: Check for modified files
         id: git-check
